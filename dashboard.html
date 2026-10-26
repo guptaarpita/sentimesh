@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>SentinelMesh</title><style>
+*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#edf2ff;font:15px system-ui}main{max-width:1100px;margin:auto;padding:28px}
+.muted{color:#9aa8c7}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.card{background:#141c31;border:1px solid #273451;border-radius:14px;padding:16px;margin:14px 0}
+h1{margin:0;font-size:30px}h2{font-size:17px;margin-top:0}.metric{font-size:28px;font-weight:700}button{background:#6d8cff;border:0;border-radius:9px;padding:10px 14px;color:#071126;font-weight:700;cursor:pointer}
+input{background:#0b1020;border:1px solid #34425f;border-radius:8px;padding:10px;color:white}.row{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}
+table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:9px;border-bottom:1px solid #273451;font-size:13px}.pill{padding:3px 8px;border-radius:99px;background:#24375b}.online{color:#72e5b1}.down{color:#ffb17a}
+@media(max-width:700px){.grid{grid-template-columns:repeat(2,1fr)}main{padding:15px}}
+</style></head><body><main>
+<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap"><div><h1>SentinelMesh</h1><div class="muted">Distributed task processing · live operations</div></div><span class="pill">MVP · Redis Streams</span></div>
+<div class="card"><h2>Submit demo jobs</h2><div class="row"><input id="count" type="number" min="1" max="50" value="8"><button onclick="submitJobs()">Submit jobs</button><button onclick="refresh()">Refresh</button></div><div id="msg" class="muted" style="margin-top:10px"></div></div>
+<div class="grid"><div class="card"><div class="muted">Queued</div><div id="queued" class="metric">—</div></div><div class="card"><div class="muted">Processing</div><div id="processing" class="metric">—</div></div><div class="card"><div class="muted">Completed</div><div id="completed" class="metric">—</div></div><div class="card"><div class="muted">Failed</div><div id="failed" class="metric">—</div></div></div>
+<div class="card"><h2>Worker nodes</h2><table><thead><tr><th>Worker</th><th>Status</th><th>Active job</th><th>Heartbeat age</th></tr></thead><tbody id="workers"></tbody></table></div>
+<div class="card"><h2>Recent jobs</h2><table><thead><tr><th>ID</th><th>Type</th><th>Status</th><th>Attempts</th><th>Result / error</th></tr></thead><tbody id="jobs"></tbody></table></div>
+<div class="card"><h2>Recent events</h2><div id="events" class="muted">Loading…</div></div></main>
+<script>
+async function get(p){let x=await fetch(p);if(!x.ok)throw Error(await x.text());return x.json()}
+async function submitJobs(){let n=Math.max(1,Math.min(50,Number(document.getElementById('count').value)||1));for(let i=0;i<n;i++)await fetch('/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task_type:'demo',payload:{duration_seconds:2}})});document.getElementById('msg').textContent=`Submitted ${n} jobs.`;refresh()}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function refresh(){try{let [jobs,workers,events]=await Promise.all([get('/jobs'),get('/workers'),get('/events')]);let c={queued:0,processing:0,completed:0,failed:0};jobs.forEach(j=>c[j.status]=(c[j.status]||0)+1);for(let k in c)document.getElementById(k).textContent=c[k]||0;
+document.getElementById('workers').innerHTML=workers.map(w=>`<tr><td>${esc(w.worker_id)}</td><td class="${w.status==='online'?'online':'down'}">${esc(w.status)}</td><td>${esc(w.active_job||'—')}</td><td>${esc(w.age_seconds)}s</td></tr>`).join('')||'<tr><td colspan="4">No workers yet. Start Docker Compose.</td></tr>';
+document.getElementById('jobs').innerHTML=jobs.slice(0,15).map(j=>`<tr><td title="${esc(j.job_id)}">${esc(j.job_id?.slice(0,8))}…</td><td>${esc(j.task_type)}</td><td>${esc(j.status)}</td><td>${esc(j.attempts)}</td><td>${esc(j.result||j.error||'—')}</td></tr>`).join('');
+document.getElementById('events').innerHTML=events.slice(0,12).map(e=>`<div style="padding:5px 0;border-bottom:1px solid #273451">${esc(e.kind)} · ${esc(e.job_id||e.worker_id||'')} · ${new Date(Number(e.at)*1000).toLocaleTimeString()}</div>`).join('')||'No events yet.';
+}catch(e){document.getElementById('msg').textContent='Refresh error: '+e}}
+refresh();setInterval(refresh,2000);
+</script></body></html>

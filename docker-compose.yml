@@ -1,0 +1,34 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+  api:
+    build: .
+    command: uvicorn app:app --host 0.0.0.0 --port 8000
+    environment: {REDIS_URL: redis://redis:6379/0}
+    ports: ["8000:8000"]
+    depends_on:
+      redis: {condition: service_healthy}
+  worker1:
+    build: .
+    command: python worker.py
+    environment: {REDIS_URL: redis://redis:6379/0, WORKER_ID: worker-1}
+    depends_on:
+      redis: {condition: service_healthy}
+  worker2:
+    build: .
+    command: python worker.py
+    environment: {REDIS_URL: redis://redis:6379/0, WORKER_ID: worker-2}
+    depends_on:
+      redis: {condition: service_healthy}
+  worker3:
+    build: .
+    command: python worker.py
+    environment: {REDIS_URL: redis://redis:6379/0, WORKER_ID: worker-3}
+    depends_on:
+      redis: {condition: service_healthy}
